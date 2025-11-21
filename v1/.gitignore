@@ -1,0 +1,34 @@
+# Local Terraform state
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Sensitive local variable files
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Override files (developer-specific)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local directories created by Terraform
+.terraform/
+.terraform.lock.hcl
+
+# Module + provider cache (Terraform 1.5+ may store extra local cache)
+.terraform-plugin-cache/
+
+# CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore plan files
+*.plan
+*.tfplan
