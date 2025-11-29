@@ -14,7 +14,7 @@ variable "instance_type" {
 variable "connector_version" {
   type = string
   description = "connection version"
-  default = "2.0.3"
+  default = "2.0.7"
 }
 
 variable "cse_env" {
@@ -26,13 +26,13 @@ variable "cse_env" {
 variable "api_key_secret" {
   type = string
   description = "api_key_secret for connector installation"
-  default = "_GasX1O3e5zl0iHIr6tjScdX8-RMt6n18dKWrhOL3tA"
+  default = "CqyXdUWfabPgBtUme07gENR64dkDPhv1c46uEVYoCdk"
 }
 
 variable "connector_name" {
   type = string
   description = "connector name"
-  default = "aws_linux_connector"
+  default = "myconnector"
 }
 
 variable "internal_server_name" {
