@@ -12,6 +12,7 @@ from config import API_KEY_ID, BEARER, URL
 # Shared helpers
 # -----------------------------
 
+
 def _default_headers() -> Dict[str, str]:
     return {
         "accept": "*/*",
@@ -75,7 +76,9 @@ def _summarize(connector: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(status_block, dict):
         status_value = status_block.get("status") or status_block.get("state")
     if status_value is None:
-        status_value = raw_status if isinstance(raw_status, str) else connector.get("status")
+        status_value = (
+            raw_status if isinstance(raw_status, str) else connector.get("status")
+        )
 
     return {
         "id": connector_id,
@@ -83,10 +86,16 @@ def _summarize(connector: Dict[str, Any]) -> Dict[str, Any]:
         or metadata.get("display_name")
         or connector.get("name"),
         "tunnel_ip_address": spec.get("tunnel_ip_address")
-        or (status_block.get("tunnel_ip_address") if isinstance(status_block, dict) else None)
+        or (
+            status_block.get("tunnel_ip_address")
+            if isinstance(status_block, dict)
+            else None
+        )
         or connector.get("tunnel_ip_address"),
         "status": status_value,
-        "cidrs": spec.get("cidrs") or spec.get("service_cidrs") or connector.get("cidrs"),
+        "cidrs": spec.get("cidrs")
+        or spec.get("service_cidrs")
+        or connector.get("cidrs"),
         "domains": spec.get("domains")
         or spec.get("fqdn")
         or spec.get("fqdns")
@@ -129,16 +138,22 @@ def _filter_by_prefix(
 # Create
 # -----------------------------
 
-def create_connectors(count: int, start_octet: int, name_prefix: str) -> None:
+
+def create_connectors(count: int, name_prefix: str, start_number: int) -> None:
     count = max(count, 0)
+    start_number = max(start_number, 1)
     headers = _default_headers()
-    headers["referer"] = "https://release.bnntest.com/admin-console/networks/connectors/add"
+    headers["referer"] = (
+        "https://release.bnntest.com/admin-console/networks/connectors/add"
+    )
 
     with requests.Session() as session:
         session.headers.update(headers)
         for i in range(count):
-            name = f"{name_prefix}-{i+1:03d}"
-            cidr = f"172.28.{start_octet + i}.0/24"
+            name = f"{name_prefix}-{start_number + i:03d}"
+            # Map sequence number to third octet: 1->2, 2->3, ..., 253->254, 254->2, ...
+            octet = ((start_number + i - 1) % 253) + 2
+            cidr = f"172.28.{octet}.0/24"
             desc = f"{name} description"
             payload = {
                 "kind": "BanyanConnector",
@@ -158,7 +173,7 @@ def create_connectors(count: int, start_octet: int, name_prefix: str) -> None:
                         {"cluster": "global-edge", "access_tiers": ["*"]}
                     ],
                     "disable_snat": False,
-                    "extended_network_access": False,
+                    "extended_network_access": True,
                 },
             }
             resp = session.post(URL, data=json.dumps(payload), timeout=30)
@@ -166,12 +181,16 @@ def create_connectors(count: int, start_octet: int, name_prefix: str) -> None:
                 resp.raise_for_status()
                 print(f"{name} ({cidr}) -> {resp.status_code}")
             except Exception as exc:
-                print(f"ERROR {name} ({cidr}): {exc} | Response: {resp.text}", file=sys.stderr)
+                print(
+                    f"ERROR {name} ({cidr}): {exc} | Response: {resp.text}",
+                    file=sys.stderr,
+                )
 
 
 # -----------------------------
 # List
 # -----------------------------
+
 
 def list_connectors(limit: int, prefixes: List[str]) -> List[Dict[str, Any]]:
     """Fetch and summarize connectors, optionally filtering by prefixes."""
@@ -203,6 +222,7 @@ def list_connectors(limit: int, prefixes: List[str]) -> List[Dict[str, Any]]:
 # -----------------------------
 # Delete
 # -----------------------------
+
 
 def delete_connectors(prefixes: List[str], limit: int, dry_run: bool) -> None:
     """Delete connectors whose name starts with any of the prefixes."""
@@ -245,17 +265,29 @@ def delete_connectors(prefixes: List[str], limit: int, dry_run: bool) -> None:
 # CLI
 # -----------------------------
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Create, list, or delete Banyan connectors.")
+    parser = argparse.ArgumentParser(
+        description="Create, list, or delete Banyan connectors."
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     create_p = sub.add_parser("create", help="Create connectors.")
-    create_p.add_argument("-c", "--count", type=int, default=3, help="Number of connectors to create (default: 3).")
     create_p.add_argument(
-        "--start-octet",
+        "-c",
+        "--count",
         type=int,
-        default=2,
-        help="Starting third octet for CIDRs (default: 2 -> 172.28.2.0/24).",
+        default=3,
+        help="Number of connectors to create (default: 3).",
+    )
+    create_p.add_argument(
+        "--start-number",
+        type=int,
+        default=1,
+        help=(
+            "Starting number for connector names (default: 1 -> {prefix}-001). "
+            "CIDRs advance with the number and wrap the third octet after 254 back to 2."
+        ),
     )
     create_p.add_argument(
         "-p",
@@ -265,7 +297,13 @@ def main() -> None:
     )
 
     list_p = sub.add_parser("list", help="List connectors.")
-    list_p.add_argument("-l", "--limit", type=int, default=100, help="Maximum number of connectors to fetch (default: 100).")
+    list_p.add_argument(
+        "-l",
+        "--limit",
+        type=int,
+        default=100,
+        help="Maximum number of connectors to fetch (default: 100).",
+    )
     list_p.add_argument(
         "-p",
         "--prefix",
@@ -299,8 +337,8 @@ def main() -> None:
     if args.command == "create":
         create_connectors(
             count=args.count,
-            start_octet=args.start_octet,
             name_prefix=args.prefix,
+            start_number=args.start_number,
         )
     elif args.command == "list":
         summaries = list_connectors(limit=args.limit, prefixes=args.prefix or [])
